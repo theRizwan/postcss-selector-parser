@@ -105,6 +105,20 @@ function indexesOf(array, item) {
   return indexes;
 }
 
+// A preprocessor interpolation (`#{...}` in SCSS, `@{...}` in Less) is open
+// when an opener has been consumed and its closing brace has not.
+function insideInterpolation(text) {
+  if (!text) {
+    return false;
+  }
+  const open = text.lastIndexOf("{");
+  if (open < 1 || text.indexOf("}", open) !== -1) {
+    return false;
+  }
+  const prefix = text[open - 1];
+  return prefix === "#" || prefix === "@";
+}
+
 function uniqs() {
   const list = Array.prototype.concat.apply([], arguments);
 
@@ -255,12 +269,13 @@ export default class Parser {
             break;
           }
           if (
-            (lastAdded === "attribute" || !node.attribute) &&
+            lastAdded === "attribute" &&
+            insideInterpolation(node.attribute) &&
             !(next && next[TOKEN.TYPE] === tokens.equals)
           ) {
-            // A `$` that is not followed by `=` is part of the attribute name
-            // rather than the suffix match operator. Preprocessors emit these
-            // through interpolation, e.g. `[#{$var}]` in SCSS.
+            // A `$` inside an open interpolation in the attribute name, such as
+            // `[#{$var}]` in SCSS, belongs to the name rather than being the
+            // suffix match operator.
             let oldRawAttribute = getProp(node, "raws", "attribute");
             node.attribute = (node.attribute || "") + "$";
             if (oldRawAttribute) {
